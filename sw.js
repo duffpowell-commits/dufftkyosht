@@ -1,6 +1,6 @@
 // App-shell cache. Only same-origin app files and the esm.sh SDK are cached;
 // calls to api.anthropic.com and to your REA host are never touched.
-const CACHE = "rea-v2";
+const CACHE = "rea-v3";
 const SHELL = ["./", "index.html", "styles.css", "app.js", "manifest.webmanifest", "icon.svg", "vendor/rea-skill.md", "icon-180.png", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", (e) => {

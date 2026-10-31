@@ -12,7 +12,8 @@ if ! command -v docker >/dev/null; then
 fi
 command -v git >/dev/null || (apt-get update && apt-get install -y git)
 
-if [ -d "$DIR/.git" ]; then git -C "$DIR" pull --ff-only; else git clone --depth 1 "$REPO" "$DIR"; fi
+BRANCH="${REA_PHONE_BRANCH:-main}"
+if [ -d "$DIR/.git" ]; then git -C "$DIR" pull --ff-only; else git clone --depth 1 --branch "$BRANCH" "$REPO" "$DIR"; fi
 cd "$DIR/host"
 
 if [ ! -f .env ]; then
@@ -28,11 +29,16 @@ docker compose up -d --build
 
 echo
 echo "Waiting for HTTPS + REA to come up..."
-for _ in $(seq 1 60); do
-  if curl -fsS "https://$REA_DOMAIN/health" 2>/dev/null | grep -q '"rea":true'; then break; fi
+ok=""
+for _ in $(seq 1 72); do
+  if curl -fsS "https://$REA_DOMAIN/health" 2>/dev/null | grep -q '"rea":true'; then ok=1; break; fi
   sleep 5
 done
-curl -fsS "https://$REA_DOMAIN/health" || true
+if [ -z "$ok" ]; then
+  echo "REA did not come up within 6 minutes. Check: docker compose -f $DIR/host/docker-compose.yml logs --tail 80" >&2
+  echo "Common causes: ports 80/443 blocked by the provider firewall, or less than 4 GB RAM." >&2
+  exit 1
+fi
 echo
 echo "================================================================"
 echo " Host URL : https://$REA_DOMAIN"

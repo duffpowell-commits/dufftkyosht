@@ -1,4 +1,5 @@
-import Anthropic from "https://esm.sh/@anthropic-ai/sdk";
+// Pinned: this page holds your API key, so never auto-pull a new SDK release.
+import Anthropic from "https://esm.sh/@anthropic-ai/sdk@1.3.0";
 
 // ---------- config ----------
 
@@ -137,6 +138,7 @@ async function loadFiles() {
         show("investigate");
       };
       li.querySelector('[data-a="del"]').onclick = async () => {
+        if (running) { alert("Wait for the current investigation to finish."); return; }
         if (!confirm(`Delete ${f.name} from the host?`)) return;
         await hostFetch(`/files/${encodeURIComponent(f.name)}`, { method: "DELETE" }).catch((e) => alert(e.message));
         if (target?.path === f.path) { target = null; store.set("rea.target", null); renderTarget(); }
@@ -465,7 +467,9 @@ function readSettingsUI() {
   };
   store.set("rea.settings", settings);
 }
+const busy = () => { if (running) { $("#settings-status").textContent = "Wait for the current investigation to finish."; } return !!running; };
 $("#save-settings").onclick = () => {
+  if (busy()) return;
   readSettingsUI();
   const s = $("#settings-status");
   s.className = "status";
@@ -473,6 +477,7 @@ $("#save-settings").onclick = () => {
   pingHost();
 };
 $("#test-host").onclick = async () => {
+  if (busy()) return;
   readSettingsUI();
   const s = $("#settings-status");
   s.className = "status";
