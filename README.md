@@ -1,37 +1,76 @@
-# Reverse Engineer Anything — phone app
+# REA on your phone
 
-A no-install phone app (PWA) that tears apart anything that works — a post, ad, landing page, product, business, skill, design, codebase, strategy — and hands back:
+A phone app (installable PWA) for **[REA — Reverse Engineer Anything](https://github.com/morluto/rea)**.
+Upload an APK, IPA, ASAR, EXE/DLL, ELF, Mach-O, .NET assembly, PyInstaller build, firmware image or zipped JS app from your phone, ask a question ("how does the login work?", "what endpoints and keys does it use?"), and Claude drives REA's full toolset (Ghidra, JADX, REA's static analyzers) on your own server. You watch every tool call and get an evidence-backed answer.
 
-- **Verdict** – the one real reason it works
-- **Formula** – a one-line reusable recipe
-- **Components** and **mechanisms** (with evidence from the input)
-- **Fill-in-the-blank template** for making your own original version
-- **Build steps**, **weak spots**, **remix ideas**
+REA itself can't run on a phone (it needs Java, Ghidra, JADX and local process control), so this is split in two:
 
-Inputs: pasted text, URLs (Claude fetches them), photos/screenshots from the camera roll or camera, PDFs. Pick a lens (content, product, business, skill, design, code, strategy) and optionally a goal, and the template gets tailored to it.
+```
+ phone (this PWA) ──upload──▶ your REA host  (Docker: REA 6.8.0 + Ghidra 12.1.4 + JADX, behind a token gateway + HTTPS)
+       │                          ▲
+       └──question──▶ Claude API ─┘  MCP connector → https://<host>/mcp  (Bearer token)
+```
 
-## Install on your phone
+- Target files go **phone → your server only**. Anthropic only sees what REA returns to Claude.
+- REA's own HTTP mode has no auth, so it only listens on loopback inside the container. The gateway (`host/gateway.mjs`, no deps) checks a bearer token, proxies `/mcp`, and handles uploads.
+- REA has 229 tools (~70k tokens of schemas). The app keeps 7 core entry points loaded and lets Claude find the rest with tool search, so each question doesn't pay for the whole catalog. Claude follows REA's own workflow skill (`vendor/rea-skill.md`, MIT).
 
-1. Host the folder over HTTPS. Easiest: GitHub repo → Settings → Pages → deploy from branch, root folder.
-2. Open the URL on your phone.
-   - **iPhone (Safari):** Share → *Add to Home Screen*.
-   - **Android (Chrome):** ⋮ → *Install app*. Once installed it shows up in the Android share sheet, so you can share a tweet/article straight into it.
-3. Open the app → **Settings** → paste your Anthropic API key → Save.
+## 1. Get a server (no computer needed)
 
-## How it works
+Any Ubuntu/Debian VPS with **≥ 4 GB RAM (8 GB recommended for Ghidra)** and ~10 GB disk: Hetzner, DigitalOcean, Vultr, Lightsail… roughly $6–15/month. You can do all of this from your phone with the provider's app and web console.
 
-- Pure static files (`index.html`, `app.js`, `styles.css`, `sw.js`, `manifest.webmanifest`). No build step, no backend.
-- Calls the Claude Messages API from the browser with the official `@anthropic-ai/sdk` (loaded from esm.sh, `dangerouslyAllowBrowser: true`), streaming, with a JSON-schema structured output so the result always renders cleanly.
-- Default model Claude Opus 5.5; Sonnet 5.5 / Haiku 5.5 selectable for cheaper runs. Opus/Sonnet requests opt into server-side refusal fallbacks (`fallbacks: "default"`).
-- URLs are opened with the server-side `web_fetch` tool (toggle in Settings).
-- API key + history (last 50) live in `localStorage` on the device only.
-
-## Security note
-
-The API key sits in the phone's browser storage. Fine for a personal app on your own phone; **don't** host this publicly with your key baked in, and set a spend limit on the key in the Anthropic Console. If you ever want to share it with other people, put a tiny proxy in front that holds the key.
-
-## Run locally
+SSH (or the provider's web console) in as root and run:
 
 ```bash
-python3 -m http.server 8080   # then open http://localhost:8080
+git clone --depth 1 https://github.com/duffpowell-commits/dufftkyosht.git /opt/rea-phone
+sudo bash /opt/rea-phone/host/setup.sh
 ```
+
+It installs Docker, builds the image (verifying Ghidra and JADX against REA's pinned SHA-256s), gets a free HTTPS cert via `<your-ip>.sslip.io` (no domain needed; set `REA_DOMAIN=your.domain` first to use your own), generates a random token, and prints:
+
+```
+Host URL : https://203-0-113-7.sslip.io
+Token    : 3f9c…
+One-tap phone setup: <APP_URL>/#host=https://203-0-113-7.sslip.io&token=3f9c…
+```
+
+The first build takes ~5–10 minutes (Ghidra is ~500 MB).
+
+## 2. Put the app on your phone
+
+1. Host this repo's root over HTTPS. Easiest: GitHub → Settings → Pages → deploy from branch, `/` (root). Your app URL is `https://<user>.github.io/<repo>/`.
+2. Open the one-tap link from step 1 on your phone (`<APP_URL>/#host=…&token=…`). It fills in the host and token, then strips them from the address bar.
+3. **iPhone:** Share → *Add to Home Screen*. **Android:** ⋮ → *Install app*.
+4. Settings → paste your Anthropic API key → **Test host** → Save.
+
+## 3. Use it
+
+- **Targets:** upload a file (tick *Unzip* for a zipped JS/Electron app folder). It becomes the current target.
+- **Investigate:** pick a preset (Map it · How does X work? · Endpoints & secrets · Security review · Rebuild it) or ask anything. Tool calls show up live as cards (tap to see input and raw evidence). Ask follow-ups in the same thread; **New** starts fresh.
+- **Models:** Opus 5.5 (default, best), Sonnet 5.5 (cheaper), Haiku 5.5 (cheapest, loads all tools, shallow).
+
+## Costs and limits
+
+- REA evidence is big (a 4-line JS app returns ~75 KB). Claude is told to use `detail: "summary"`, but a deep native investigation can still use hundreds of thousands of input tokens. Set a spend limit on your API key.
+- The host has no GUI, Hopper, IDA, browser or Android device, so REA's browser/runtime/device tools won't work there. Static analysis (Ghidra, JADX, JS, .NET, archives, firmware metadata) does.
+- REA serves one MCP client at a time. Keep one investigation running at a time.
+- Very long REA calls (e.g. a first Ghidra analysis of a huge binary) may outlast the API's MCP call window. Ask again; REA reuses its retained analysis.
+
+## Security
+
+- Keep the token secret: anyone with it can run REA on your server and read uploaded targets. To rotate it, edit `host/.env` and run `docker compose up -d`.
+- Your Anthropic key and host token live in the phone's localStorage only.
+- Only analyze software you're allowed to. REA's [disclaimer](https://github.com/morluto/rea/blob/main/DISCLAIMER.md) applies.
+
+## Files
+
+| Path | What |
+|---|---|
+| `index.html`, `app.js`, `styles.css`, `sw.js`, `manifest.webmanifest`, `icon*` | Phone app (static, no build step) |
+| `vendor/rea-skill.md`, `vendor/REA-LICENSE` | REA's workflow skill, vendored (MIT) |
+| `host/Dockerfile` | REA 6.8.0 + Ghidra 12.1.4 + JADX headless MCP 0.7.1 + JDK 21 + Node 24 |
+| `host/gateway.mjs` | Token auth, `/mcp` proxy, `/upload`, `/files` |
+| `host/docker-compose.yml`, `host/Caddyfile` | HTTPS via Caddy (auto cert) |
+| `host/setup.sh` | One-shot VPS setup |
+
+Run the app locally: `python3 -m http.server 8080`. Run the gateway against a local REA without Docker: `REA_TOKEN=$(openssl rand -hex 32) node host/gateway.mjs` (needs `rea` on PATH).

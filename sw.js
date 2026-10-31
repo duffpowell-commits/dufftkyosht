@@ -1,6 +1,7 @@
-// App-shell cache. API calls to api.anthropic.com are never cached.
-const CACHE = "reverse-v1";
-const SHELL = ["./", "index.html", "styles.css", "app.js", "manifest.webmanifest", "icon.svg", "icon-180.png", "icon-192.png", "icon-512.png"];
+// App-shell cache. Only same-origin app files and the esm.sh SDK are cached;
+// calls to api.anthropic.com and to your REA host are never touched.
+const CACHE = "rea-v2";
+const SHELL = ["./", "index.html", "styles.css", "app.js", "manifest.webmanifest", "icon.svg", "vendor/rea-skill.md", "icon-180.png", "icon-192.png", "icon-512.png"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

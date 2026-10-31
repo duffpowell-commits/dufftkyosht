@@ -6,8 +6,8 @@
   <meta name="theme-color" content="#0b0d10" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Reverse" />
-  <title>Reverse Engineer Anything</title>
+  <meta name="apple-mobile-web-app-title" content="REA" />
+  <title>REA – Reverse Engineer Anything</title>
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="icon-180.png" />
@@ -15,46 +15,52 @@
 </head>
 <body>
   <header class="topbar">
-    <h1>Reverse<span>.</span></h1>
+    <div class="row between">
+      <h1>REA<span>.</span></h1>
+      <span id="host-dot" class="dot" title="Host status"></span>
+    </div>
     <nav>
-      <button class="tab active" data-view="analyze">Analyze</button>
+      <button class="tab active" data-view="investigate">Investigate</button>
+      <button class="tab" data-view="targets">Targets</button>
       <button class="tab" data-view="history">History</button>
       <button class="tab" data-view="settings">Settings</button>
     </nav>
   </header>
 
   <main>
-    <!-- ANALYZE -->
-    <section id="view-analyze" class="view active">
-      <p class="lede">Paste a post, ad, landing page, product, business, skill, design or chunk of code. Get the formula and a template you own.</p>
-
-      <label class="field">
-        <span>What are we tearing apart?</span>
-        <textarea id="input" rows="6" placeholder="Paste text or a URL, or describe the thing (e.g. &quot;Why does Liquid Death sell water for $2?&quot;)"></textarea>
-      </label>
-
-      <div class="attach-row">
-        <label class="btn ghost">
-          📷 Photo / screenshot
-          <input id="file" type="file" accept="image/*,application/pdf" multiple hidden />
-        </label>
-        <div id="thumbs" class="thumbs"></div>
+    <!-- INVESTIGATE -->
+    <section id="view-investigate" class="view active">
+      <div class="target-bar">
+        <span class="label">Target</span>
+        <button id="target-pick" class="chip wide">None. Tap to pick or upload.</button>
       </div>
 
-      <div class="field">
-        <span>Lens</span>
-        <div id="lenses" class="chips"></div>
+      <div id="thread" class="thread"></div>
+
+      <div id="composer" class="composer">
+        <div id="presets" class="chips"></div>
+        <textarea id="question" rows="3" placeholder="e.g. How does the login flow work? Show the evidence."></textarea>
+        <div class="row">
+          <button id="send" class="btn primary grow">Investigate</button>
+          <button id="stop" class="btn" hidden>Stop</button>
+          <button id="new" class="btn ghost" title="New investigation">New</button>
+        </div>
+        <p id="status" class="status" aria-live="polite"></p>
       </div>
+    </section>
 
-      <label class="field">
-        <span>Goal (optional)</span>
-        <input id="goal" type="text" placeholder="e.g. I want to make my own version for my trading newsletter" />
+    <!-- TARGETS -->
+    <section id="view-targets" class="view">
+      <h2>Targets on your REA host</h2>
+      <p class="muted">APK, IPA, ASAR, EXE/DLL, ELF, Mach-O, firmware, .NET, PyInstaller, zip… Uploads go straight to your server, never to Anthropic.</p>
+      <label class="btn primary big">
+        ⬆︎ Upload a file
+        <input id="upload" type="file" hidden />
       </label>
-
-      <button id="go" class="btn primary big">Reverse engineer it</button>
-      <p id="status" class="status" aria-live="polite"></p>
-
-      <div id="result"></div>
+      <label class="check"><input id="extract" type="checkbox" /> Unzip .zip on the host (for extracted JS/Electron app folders)</label>
+      <div id="upload-progress" class="progress" hidden><div></div></div>
+      <p id="targets-status" class="status"></p>
+      <ul id="files" class="list"></ul>
     </section>
 
     <!-- HISTORY -->
@@ -63,40 +69,48 @@
         <h2>History</h2>
         <button id="clear-history" class="btn ghost small">Clear</button>
       </div>
-      <ul id="history-list" class="history"></ul>
+      <ul id="history-list" class="list"></ul>
     </section>
 
     <!-- SETTINGS -->
     <section id="view-settings" class="view">
       <h2>Settings</h2>
       <label class="field">
+        <span>REA host URL</span>
+        <input id="host-url" type="url" autocomplete="off" placeholder="https://1-2-3-4.sslip.io" />
+      </label>
+      <label class="field">
+        <span>Host token</span>
+        <input id="host-token" type="password" autocomplete="off" placeholder="printed by host/setup.sh" />
+      </label>
+      <label class="field">
         <span>Anthropic API key</span>
         <input id="api-key" type="password" autocomplete="off" placeholder="sk-ant-..." />
-        <small>Stored only on this device (localStorage). Requests go straight from your phone to api.anthropic.com.</small>
+        <small>All keys stay on this phone (localStorage). The phone talks to api.anthropic.com and to your host. Anthropic's servers call your host's /mcp with the host token.</small>
       </label>
       <label class="field">
         <span>Model</span>
         <select id="model">
           <option value="claude-opus-5-5">Claude Opus 5.5 (best)</option>
-          <option value="claude-sonnet-5-5">Claude Sonnet 5.5 (cheaper, fast)</option>
-          <option value="claude-haiku-5-5">Claude Haiku 5.5 (dirt cheap)</option>
+          <option value="claude-sonnet-5-5">Claude Sonnet 5.5 (cheaper)</option>
+          <option value="claude-haiku-5-5">Claude Haiku 5.5 (cheapest, shallow)</option>
         </select>
       </label>
       <label class="field">
-        <span>Depth (effort)</span>
+        <span>Effort</span>
         <select id="effort">
-          <option value="low">Low – quick take</option>
+          <option value="low">Low</option>
           <option value="medium">Medium</option>
-          <option value="high" selected>High – thorough</option>
-          <option value="xhigh">X-High – go deep</option>
+          <option value="high" selected>High</option>
+          <option value="xhigh">X-High</option>
         </select>
       </label>
-      <label class="check">
-        <input id="web" type="checkbox" checked />
-        Let Claude open URLs I paste
-      </label>
-      <button id="save-settings" class="btn primary">Save</button>
+      <div class="row">
+        <button id="save-settings" class="btn primary grow">Save</button>
+        <button id="test-host" class="btn">Test host</button>
+      </div>
       <p id="settings-status" class="status"></p>
+      <p class="muted small">Powered by <a href="https://github.com/morluto/rea" target="_blank" rel="noopener">REA</a> (MIT) running on your own server. Use it only on software you're allowed to analyze.</p>
     </section>
   </main>
 

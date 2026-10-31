@@ -1,0 +1,13 @@
+{$REA_DOMAIN} {
+	request_body {
+		max_size 1100MB
+	}
+	reverse_proxy rea:8080 {
+		# Stream MCP SSE frames and upload progress immediately.
+		flush_interval -1
+		transport http {
+			read_timeout 0
+			write_timeout 0
+		}
+	}
+}
