@@ -1,0 +1,28 @@
+services:
+  rea:
+    build: .
+    restart: unless-stopped
+    environment:
+      REA_TOKEN: ${REA_TOKEN:?set REA_TOKEN in .env}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-1024}
+    volumes:
+      - targets:/data
+    # Not published: only Caddy can reach it.
+    expose: ["8080"]
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [rea]
+    ports: ["80:80", "443:443"]
+    environment:
+      REA_DOMAIN: ${REA_DOMAIN:?set REA_DOMAIN in .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  targets:
+  caddy_data:
+  caddy_config:
